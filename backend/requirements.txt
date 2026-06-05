@@ -1,0 +1,14 @@
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+sqlalchemy==2.0.30
+pydantic==2.7.1
+pydantic-settings==2.2.1
+python-jose[cryptography]==3.3.0
+pwdlib[argon2]==0.2.1
+python-multipart==0.0.9
+alembic==1.13.1
+python-dotenv==1.0.1
+loguru==0.7.2
+aiofiles==23.2.1
+qrcode[pil]==7.4.2
+pytest==8.2.2

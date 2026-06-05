@@ -1,0 +1,60 @@
+# ============================================================
+#  机房智能巡检系统 — Git ignore
+# ============================================================
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ---- Node / 前端 ----
+node_modules/
+dist/
+.vite/
+*.local
+
+# 自动生成的类型声明（构建时再生成）
+frontend/src/auto-imports.d.ts
+frontend/src/components.d.ts
+
+# ---- 环境变量与密钥（保留 *.example / *.development / *.production 模板）----
+.env
+.env.local
+
+# ---- 运行时数据（务必不要入库，本地保留）----
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+uploads/
+reports/
+data/
+backend/uploads/
+backend/reports/
+
+# ---- 日志 ----
+*.log
+logs/
+
+# ---- 临时 / 验证脚本（本地保留，不入库）----
+_verify_*.py
+_check_*.py
+_smoke*.ps1
+_*.ps1
+
+# ---- 构建/部署临时产物 ----
+.docker-build.log
+
+# ---- 工具与 IDE ----
+.claude/
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
+.claude/settings.local.json

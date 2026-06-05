@@ -1,0 +1,62 @@
+@use './variables' as *;
+@use './reset.scss';
+
+// Element Plus 主题色覆写
+:root {
+  --el-color-primary: #{$brand-primary};
+  --el-color-primary-light-3: #5C8AFF;
+  --el-color-primary-light-5: #99B5FF;
+  --el-color-primary-light-7: #C4D5FF;
+  --el-color-primary-light-8: #E8F0FF;
+  --el-color-primary-light-9: #F0F5FF;
+  --el-color-primary-dark-2: #1849CC;
+  --el-border-radius-base: 6px;
+  --el-font-family: 'PingFang SC', 'Microsoft YaHei', 'Helvetica Neue', sans-serif;
+}
+
+// 通用工具类
+.flex { display: flex; }
+.flex-1 { flex: 1; min-width: 0; }
+.flex-center { display: flex; align-items: center; justify-content: center; }
+.flex-between { display: flex; align-items: center; justify-content: space-between; }
+.gap-8  { gap: 8px; }
+.gap-12 { gap: 12px; }
+.gap-16 { gap: 16px; }
+.gap-24 { gap: 24px; }
+
+.text-secondary { color: $text-secondary; }
+.text-tertiary  { color: $text-tertiary; }
+
+.page-card {
+  background: $bg-card;
+  border-radius: $radius-md;
+  box-shadow: $shadow-card;
+  padding: 20px;
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: $text-primary;
+  margin: 0 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  &::before {
+    content: '';
+    display: inline-block;
+    width: 3px;
+    height: 14px;
+    background: $brand-primary;
+    border-radius: 2px;
+  }
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+}

@@ -1,0 +1,42 @@
+# 机房智能巡检系统 — 生产部署
+#
+#   cp .env.example .env   # 按需修改 PUBLIC_WEB_BASE_URL / JWT_SECRET
+#   docker compose up -d --build
+#
+# 访问: http://<服务器IP>:8001   默认账号 admin / 123456 (请尽快改密码)
+# 数据全部落在 ./data 目录:  inspection.db(库) / uploads(照片) / reports(巡检报告HTML)
+# 备份 = 直接拷贝 ./data 目录
+
+name: inspection
+
+services:
+  backend:
+    build: ./backend
+    image: inspection-backend:latest
+    restart: unless-stopped
+    environment:
+      APP_ENV: prod
+      # SQLite 单文件,放在持久化卷里 (四个斜杠 = 绝对路径)
+      DATABASE_URL: "sqlite:////app/data/inspection.db"
+      UPLOAD_DIR: /app/data/uploads
+      REPORTS_DIR: /app/data/reports
+      # 二维码扫码地址 — 必须是手机能访问到的地址(服务器局域网/公网 IP),否则扫码无法打开。
+      # 在同目录 .env 里设置 PUBLIC_WEB_BASE_URL=http://你的服务器IP:8001 覆盖此默认值。
+      PUBLIC_WEB_BASE_URL: ${PUBLIC_WEB_BASE_URL:-http://172.16.4.54:8001}
+      FRONTEND_ROUTER_MODE: hash
+      JWT_SECRET: ${JWT_SECRET:-please-change-this-secret}
+      JWT_EXPIRE_MINUTES: "720"
+    volumes:
+      - ./data:/app/data
+    expose:
+      - "8000"
+
+  frontend:
+    build: ./frontend
+    image: inspection-frontend:latest
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      # 宿主机 8001 -> 容器内 nginx 80
+      - "8001:80"

@@ -1,0 +1,18 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+
+# local runtime data — must NOT go into the image (lives in the ./data volume)
+inspection.db
+inspection.db-*
+uploads/
+reports/
+.uvicorn.log
+
+# local env / helper scripts
+.env
+_*.py
+_*.ps1
