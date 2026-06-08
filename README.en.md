@@ -67,14 +67,19 @@ An inspection system for server rooms / data centers: **inspectors scan one fixe
 
 ## 🌐 Live Demo
 
-> Current demo address uses the LAN access URL.
+> After deployment, use your own server address.
 
-- Demo URL: [http://172.16.4.54:8001/](http://172.16.4.54:8001/)
-- Default accounts (password is `123456` for all):
+- URL: `http://<server-ip>:8001/`
+- Clean deployment default account:
 
 | Account | Role | Use |
 |---|---|---|
 | `admin` | Admin | PC backend: records/reports, manage rooms/equipment/users, generate QR |
+
+When `SEED_DEMO_DATA=true` is enabled, extra demo accounts are created (password is `123456` for all):
+
+| Account | Role | Use |
+|---|---|---|
 | `inspector01` / `inspector02` | Inspector | Mobile QR inspection |
 | `handler01` / `handler02` | Handler | Issue closed‑loop: handle abnormalities, submit fixes |
 | `verifier01` | Verifier | Issue closed‑loop: verify / reject |
