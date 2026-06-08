@@ -1,6 +1,5 @@
 import re
 import secrets
-from datetime import datetime
 from pathlib import Path
 
 from fastapi import UploadFile
@@ -8,6 +7,7 @@ from loguru import logger
 
 from app.core.config import settings
 from app.utils.response import BusinessError
+from app.utils.time_utils import now_local
 
 ALLOWED_MIME = {
     "image/jpeg": ".jpg",
@@ -58,7 +58,7 @@ async def save_image(file: UploadFile) -> dict:
     if not _looks_like_image(data):
         raise BusinessError("文件内容不是有效的图片", code=4105)
 
-    now = datetime.now()
+    now = now_local()
     sub_dir = Path(settings.UPLOAD_DIR) / f"{now.year:04d}" / f"{now.month:02d}"
     sub_dir.mkdir(parents=True, exist_ok=True)
 

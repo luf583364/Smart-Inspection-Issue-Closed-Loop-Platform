@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.models.inspection_record import InspectionRecord
 from app.models.room import Room
 from app.models.user import User
+from app.services.inspection_record_service import visible_record_filter
 from app.utils.enums import RecordStatus
 
 STATUS_LABEL_ZH = {
@@ -42,7 +43,8 @@ def get_summary(db: Session) -> dict:
     month_start = datetime(today.year, today.month, 1)
 
     def count(*where):
-        stmt = select(func.count(InspectionRecord.id))
+        # 统一排除空的 in_progress 草稿，避免误触巡检拉高今日/本月计数
+        stmt = select(func.count(InspectionRecord.id)).where(visible_record_filter())
         for w in where:
             stmt = stmt.where(w)
         return db.execute(stmt).scalar_one()
@@ -79,7 +81,10 @@ def get_trends(db: Session, days: int = 7) -> dict:
             func.date(InspectionRecord.inspection_time).label("d"),
             func.count(InspectionRecord.id).label("n"),
         )
-        .where(InspectionRecord.inspection_time >= datetime.combine(start_date, time.min))
+        .where(
+            InspectionRecord.inspection_time >= datetime.combine(start_date, time.min),
+            visible_record_filter(),
+        )
         .group_by(func.date(InspectionRecord.inspection_time))
     ).all()
     issue_rows = db.execute(
@@ -90,6 +95,7 @@ def get_trends(db: Session, days: int = 7) -> dict:
         .where(
             InspectionRecord.inspection_time >= datetime.combine(start_date, time.min),
             InspectionRecord.has_issue == 1,
+            visible_record_filter(),
         )
         .group_by(func.date(InspectionRecord.inspection_time))
     ).all()
@@ -132,6 +138,7 @@ def get_recent_records(db: Session, limit: int = 8) -> list[dict]:
         select(InspectionRecord, Room.name, User.name)
         .join(Room, Room.id == InspectionRecord.room_id)
         .join(User, User.id == InspectionRecord.inspector_id)
+        .where(visible_record_filter())
         .order_by(InspectionRecord.inspection_time.desc())
         .limit(limit)
     ).all()

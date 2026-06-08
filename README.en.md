@@ -32,6 +32,7 @@ An inspection system for server rooms / data centers: **inspectors scan one fixe
 - Check items support **boolean (normal/abnormal)**, **number (with unit & standard value)**, **text**
 - Per‑device abnormal flag + **issue description** + **on‑site photo upload**
 - "Save & next" jumps to the next un‑inspected device; resumable drafts
+- Each account may inspect a given room **once per day**; already‑inspected rooms are marked "Inspected" in the picker
 - After submit you can "inspect another room"; UI optimized for mobile
 
 ### PC Admin

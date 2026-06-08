@@ -9,6 +9,7 @@ import random
 from sqlalchemy import inspect, select
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.logger import logger
 from app.core.security import hash_password
 from app.db.base import Base
@@ -20,6 +21,7 @@ from app.models.inspection_item_result import InspectionItemResult
 from app.models.inspection_record import InspectionRecord
 from app.models.room import Room
 from app.models.user import User
+from app.utils.time_utils import now_local
 from app.utils.enums import (
     CheckItemInputType,
     EquipmentResultStatus,
@@ -152,6 +154,29 @@ def _seed_rooms(db: Session, users: dict[str, User]) -> dict[str, Room]:
     return rooms
 
 
+def _seed_basic_rooms(db: Session) -> dict[str, Room]:
+    payload = [
+        ("JF-OFFICE", "办公机房", "办公区", None, "010-12340001"),
+        ("JF-ECOM", "电商机房", "电商业务区", None, "010-12340002"),
+    ]
+    rooms: dict[str, Room] = {}
+    for code, name, area, owner_id, phone in payload:
+        room = Room(
+            code=code,
+            name=name,
+            area=area,
+            owner_id=owner_id,
+            phone=phone,
+            status=1,
+        )
+        db.add(room)
+        rooms[code] = room
+    db.commit()
+    for room in rooms.values():
+        db.refresh(room)
+    return rooms
+
+
 def _seed_check_items(db: Session) -> dict[str, list[InspectionCheckItem]]:
     by_type: dict[str, list[InspectionCheckItem]] = {}
     for eq_type, items in CHECK_ITEM_TEMPLATES.items():
@@ -176,6 +201,30 @@ def _seed_check_items(db: Session) -> dict[str, list[InspectionCheckItem]]:
         for it in items:
             db.refresh(it)
     return by_type
+
+
+def _seed_clean(db: Session) -> None:
+    admin = User(
+        username=settings.BOOTSTRAP_ADMIN_USERNAME,
+        password_hash=hash_password(settings.BOOTSTRAP_ADMIN_PASSWORD),
+        name=settings.BOOTSTRAP_ADMIN_NAME,
+        role=UserRole.ADMIN.value,
+        phone=settings.BOOTSTRAP_ADMIN_PHONE,
+        status=1,
+    )
+    db.add(admin)
+    db.commit()
+    db.refresh(admin)
+
+    rooms = _seed_basic_rooms(db)
+    check_items = _seed_check_items(db)
+    equipment = _seed_equipment(db, rooms)
+    logger.info(
+        "Seeded clean production data: "
+        f"1 admin / {len(rooms)} rooms / "
+        f"{sum(len(v) for v in check_items.values())} check_items / "
+        f"{len(equipment)} equipment"
+    )
 
 
 def _seed_equipment(db: Session, rooms: dict[str, Room]) -> list[Equipment]:
@@ -212,7 +261,7 @@ def _seed_records(
     """Create historical records covering all-normal and abnormal flows."""
 
     rng = random.Random(20260605)
-    now = datetime.now().replace(microsecond=0)
+    now = now_local()
     seq_by_day: dict[str, int] = {}
 
     def next_no(dt: datetime) -> str:
@@ -224,15 +273,17 @@ def _seed_records(
     for eq in equipment:
         by_room.setdefault(eq.room_id, []).append(eq)
 
+    # 演示记录全部落在「过去」（最近一条为昨天），避免与「一天一机房只能巡检一次」
+    # 冲突：全新部署当天，演示巡检员仍可正常对机房做一次巡检，再次进入才会被拦截。
     plan = [
-        (0, "JF-OFFICE", "inspector01", True),
-        (0, "JF-ECOM", "inspector02", False),
         (1, "JF-OFFICE", "inspector01", True),
-        (2, "JF-ECOM", "inspector02", False),
-        (3, "JF-OFFICE", "inspector01", True),
-        (4, "JF-ECOM", "inspector02", True),
-        (5, "JF-OFFICE", "inspector01", False),
-        (6, "JF-ECOM", "inspector02", True),
+        (1, "JF-ECOM", "inspector02", False),
+        (2, "JF-OFFICE", "inspector01", True),
+        (3, "JF-ECOM", "inspector02", False),
+        (4, "JF-OFFICE", "inspector01", True),
+        (5, "JF-ECOM", "inspector02", True),
+        (6, "JF-OFFICE", "inspector01", False),
+        (7, "JF-ECOM", "inspector02", True),
     ]
 
     for offset, room_code, inspector_username, all_normal in plan:
@@ -332,5 +383,9 @@ def init_db() -> None:
         if existing:
             logger.info("DB already has data, skip seeding.")
             return
-        logger.info("Empty DB - seeding demo data ...")
-        _seed(db)
+        if settings.SEED_DEMO_DATA:
+            logger.info("Empty DB - seeding demo data ...")
+            _seed(db)
+        else:
+            logger.info("Empty DB - seeding clean production data ...")
+            _seed_clean(db)

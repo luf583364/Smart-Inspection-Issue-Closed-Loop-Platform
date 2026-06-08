@@ -13,6 +13,15 @@ from app.utils.response import success
 router = APIRouter()
 
 
+@router.get("/rooms", summary="可巡检机房列表（移动端，含今日是否已巡检）")
+def list_inspectable_rooms(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    data = mobile_inspection_service.list_inspectable_rooms(db, user=user)
+    return success(data)
+
+
 @router.post("/rooms/{room_code}/start", summary="开始指定机房的巡检（移动端入口）")
 def start_inspection(
     room_code: str,

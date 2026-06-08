@@ -22,6 +22,7 @@ from app.core.logger import logger
 from app.models.attachment import Attachment
 from app.services import inspection_record_service
 from app.utils.enums import AttachmentCategory
+from app.utils.time_utils import now_local
 
 STATUS_LABEL_ZH = {
     "in_progress": "进行中（草稿）",
@@ -192,7 +193,7 @@ def _render_html(detail: dict, att_paths: dict[int, list[str]]) -> str:
         for t in detail.get("timeline", [])
     )
 
-    generated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    generated_at = now_local().strftime("%Y-%m-%d %H:%M:%S")
     title = settings.APP_NAME
 
     return f"""<!doctype html>

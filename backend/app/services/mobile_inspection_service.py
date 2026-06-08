@@ -6,10 +6,10 @@ Owns the lifecycle of one room-level inspection record:
 Status transitions are managed here so the API layer stays thin.
 """
 
-from datetime import datetime
+from datetime import datetime, time
 from typing import Iterable
 
-from sqlalchemy import select
+from sqlalchemy import exists, func, select
 from sqlalchemy.orm import Session
 
 from app.models.attachment import Attachment
@@ -32,6 +32,7 @@ from app.utils.enums import (
 )
 from app.utils.file_storage import delete_saved_file, url_for
 from app.utils.response import BusinessError
+from app.utils.time_utils import now_local
 
 
 def _gen_record_no(db: Session, dt: datetime) -> str:
@@ -49,6 +50,52 @@ def _gen_record_no(db: Session, dt: datetime) -> str:
 
 def _can_inspect(user: User) -> bool:
     return user.role in (UserRole.ADMIN.value, UserRole.INSPECTOR.value)
+
+
+def _today_start() -> datetime:
+    """本地业务时区今天 0 点（与入库的 inspection_time / submitted_at 同口径）。"""
+    return datetime.combine(now_local().date(), time.min)
+
+
+def _inspected_today_room_ids(db: Session, inspector_id: int) -> set[int]:
+    """该巡检员今天「已提交」过的机房 id 集合（用于一天一次限制 + 已巡检标记）。"""
+    rows = db.execute(
+        select(InspectionRecord.room_id).where(
+            InspectionRecord.inspector_id == inspector_id,
+            InspectionRecord.status != RecordStatus.IN_PROGRESS.value,
+            InspectionRecord.submitted_at >= _today_start(),
+        )
+    ).scalars().all()
+    return set(rows)
+
+
+def _purge_empty_drafts(db: Session, *, inspector_id: int, keep_room_id: int | None = None) -> None:
+    """删除该巡检员遗留的「空草稿」：状态仍是 in_progress，但没有任何设备结果、
+    也没有任何附件 —— 即点进机房却没做任何操作的误触记录，避免后台脏数据堆积。
+
+    keep_room_id 对应的草稿保留（本次可能要复用）。
+    """
+    no_eq = ~exists().where(InspectionEquipmentResult.record_id == InspectionRecord.id)
+    no_att = ~exists().where(Attachment.record_id == InspectionRecord.id)
+    conds = [
+        InspectionRecord.inspector_id == inspector_id,
+        InspectionRecord.status == RecordStatus.IN_PROGRESS.value,
+        no_eq,
+        no_att,
+    ]
+    if keep_room_id is not None:
+        conds.append(InspectionRecord.room_id != keep_room_id)
+    stale_ids = db.execute(select(InspectionRecord.id).where(*conds)).scalars().all()
+    if stale_ids:
+        db.execute(
+            InspectionItemResult.__table__.delete().where(
+                InspectionItemResult.record_id.in_(stale_ids)
+            )
+        )
+        db.execute(
+            InspectionRecord.__table__.delete().where(InspectionRecord.id.in_(stale_ids))
+        )
+        db.commit()
 
 
 def _load_equipment_for_room(db: Session, room_id: int) -> list[Equipment]:
@@ -219,6 +266,15 @@ def start_room_inspection(
     if source not in (InspectionSource.MANUAL.value, InspectionSource.QR.value):
         source = InspectionSource.MANUAL.value
 
+    # 一天一次限制：同一账号同一机房，今天若已「提交」过则不允许再次巡检
+    if room.id in _inspected_today_room_ids(db, user.id):
+        raise BusinessError(
+            "您今天已巡检过该机房，每个机房每天仅可巡检一次", code=4208
+        )
+
+    # 顺手清理该账号在「其它机房」遗留的空草稿（误触进入未做任何操作的 in_progress）
+    _purge_empty_drafts(db, inspector_id=user.id, keep_room_id=room.id)
+
     # try to reuse an in-progress record for this user/room
     record = db.execute(
         select(InspectionRecord)
@@ -231,7 +287,7 @@ def start_room_inspection(
     ).scalar_one_or_none()
 
     if not record:
-        now = datetime.now().replace(microsecond=0)
+        now = now_local()
         record = InspectionRecord(
             record_no=_gen_record_no(db, now),
             inspector_id=user.id,
@@ -270,6 +326,49 @@ def start_room_inspection(
         "next_pending_equipment_id": nav["next_pending_equipment_id"],
         "all_completed": nav["all_completed"],
     }
+
+
+def list_inspectable_rooms(db: Session, *, user: User) -> list[dict]:
+    """移动端「选择机房」列表：启用机房 + 每个机房今天是否已被本账号巡检。"""
+    if not _can_inspect(user):
+        raise BusinessError("当前账号无巡检权限", code=4201, http_status=403)
+
+    rooms = list(
+        db.execute(
+            select(Room).where(Room.status == 1).order_by(Room.code)
+        ).scalars().all()
+    )
+
+    owner_ids = {r.owner_id for r in rooms if r.owner_id}
+    name_map: dict[int, str] = {}
+    if owner_ids:
+        for u in db.execute(select(User).where(User.id.in_(owner_ids))).scalars().all():
+            name_map[u.id] = u.name
+
+    eq_count_map: dict[int, int] = {}
+    for rid, n in db.execute(
+        select(Equipment.room_id, func.count(Equipment.id))
+        .where(Equipment.status == 1)
+        .group_by(Equipment.room_id)
+    ).all():
+        eq_count_map[rid] = int(n)
+
+    done_room_ids = _inspected_today_room_ids(db, user.id)
+
+    return [
+        {
+            "id": r.id,
+            "code": r.code,
+            "name": r.name,
+            "area": r.area,
+            "owner_id": r.owner_id,
+            "owner_name": name_map.get(r.owner_id) if r.owner_id else None,
+            "status": r.status,
+            "equipment_count": eq_count_map.get(r.id, 0),
+            "inspected_today": r.id in done_room_ids,
+        }
+        for r in rooms
+    ]
 
 
 def get_equipment_inspection_state(
@@ -438,14 +537,14 @@ def save_equipment_result(
     if eq_result:
         eq_result.result = result
         eq_result.issue_description = issue_description if result == EquipmentResultStatus.ABNORMAL.value else None
-        eq_result.completed_at = datetime.now().replace(microsecond=0)
+        eq_result.completed_at = now_local()
     else:
         db.add(InspectionEquipmentResult(
             record_id=record_id,
             equipment_id=equipment_id,
             result=result,
             issue_description=issue_description if result == EquipmentResultStatus.ABNORMAL.value else None,
-            completed_at=datetime.now().replace(microsecond=0),
+            completed_at=now_local(),
         ))
 
     db.commit()
@@ -555,7 +654,7 @@ def submit_record(db: Session, *, record_id: int, user: User) -> dict:
     record.status = (
         RecordStatus.PENDING_ASSIGN.value if has_abnormal else RecordStatus.COMPLETED.value
     )
-    record.submitted_at = datetime.now().replace(microsecond=0)
+    record.submitted_at = now_local()
 
     normal_n = sum(1 for r in results if r.result == EquipmentResultStatus.NORMAL.value)
     abnormal_n = sum(1 for r in results if r.result == EquipmentResultStatus.ABNORMAL.value)

@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Iterable
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.attachment import Attachment
@@ -20,8 +20,25 @@ from app.utils.enums import (
     AttachmentCategory,
     EquipmentResultStatus,
     ProcessAction,
+    RecordStatus,
 )
 from app.utils.file_storage import url_for
+
+
+def visible_record_filter():
+    """巡检记录可见性过滤：排除「点进机房但未做任何操作」产生的空草稿。
+
+    这类记录 status 仍是 in_progress 且没有任何设备结果，属于误触产生的脏数据，
+    后台列表、看板统计、最近记录都不应展示。判定：保留「非 in_progress」或
+    「已有至少一台设备结果」的记录。
+    """
+    has_results = exists().where(
+        InspectionEquipmentResult.record_id == InspectionRecord.id
+    )
+    return or_(
+        InspectionRecord.status != RecordStatus.IN_PROGRESS.value,
+        has_results,
+    )
 
 _PROCESS_ACTION_LABEL = {
     ProcessAction.ASSIGN.value: "转发处理",
@@ -58,11 +75,12 @@ def list_records(
     if end:
         filters.append(InspectionRecord.inspection_time <= end)
 
-    count_stmt = select(func.count(InspectionRecord.id))
+    count_stmt = select(func.count(InspectionRecord.id)).where(visible_record_filter())
     base_stmt = (
         select(InspectionRecord, Room, User)
         .join(Room, Room.id == InspectionRecord.room_id)
         .join(User, User.id == InspectionRecord.inspector_id)
+        .where(visible_record_filter())
     )
     for f in filters:
         count_stmt = count_stmt.where(f)

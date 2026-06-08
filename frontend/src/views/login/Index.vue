@@ -82,19 +82,6 @@
           </el-button>
         </el-form>
 
-        <div class="demo-accounts">
-          <div class="demo-title">演示账号 · 密码统一 <code>123456</code></div>
-          <div class="demo-chips">
-            <span
-              v-for="a in demoAccounts"
-              :key="a.username"
-              class="chip"
-              @click="fillDemo(a.username)"
-            >
-              {{ a.label }} · {{ a.username }}
-            </span>
-          </div>
-        </div>
       </div>
     </section>
   </div>
@@ -127,18 +114,6 @@ const loading = ref(false)
 const rules: FormRules = {
   username: [{ required: true, message: '请输入账号', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
-}
-
-const demoAccounts = [
-  { username: 'admin', label: '管理员' },
-  { username: 'inspector01', label: '巡检员' },
-  { username: 'handler01', label: '处理员' },
-  { username: 'verifier01', label: '核实员' },
-]
-
-function fillDemo(username: string) {
-  form.username = username
-  form.password = '123456'
 }
 
 async function onSubmit() {
@@ -295,43 +270,6 @@ async function onSubmit() {
   border: none;
   margin-top: 8px;
   box-shadow: 0 6px 16px rgba(30, 94, 255, 0.25);
-}
-
-.demo-accounts {
-  margin-top: 28px;
-  padding-top: 20px;
-  border-top: 1px dashed $border-base;
-
-  .demo-title {
-    font-size: 12px;
-    color: $text-tertiary;
-    margin-bottom: 10px;
-    code {
-      padding: 1px 6px;
-      background: $brand-light;
-      color: $brand-primary;
-      border-radius: 3px;
-      font-size: 12px;
-    }
-  }
-  .demo-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-  .chip {
-    font-size: 12px;
-    padding: 4px 10px;
-    background: $bg-hover;
-    color: $text-secondary;
-    border-radius: 12px;
-    cursor: pointer;
-    transition: all 0.2s;
-    &:hover {
-      background: $brand-light;
-      color: $brand-primary;
-    }
-  }
 }
 
 /* 小屏隐藏 hero */

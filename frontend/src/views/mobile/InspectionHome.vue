@@ -26,17 +26,23 @@
         v-for="r in filteredRooms"
         :key="r.id"
         class="room-card"
+        :class="{ done: r.inspected_today }"
         @click="goRoom(r)"
       >
         <div class="row1">
           <span class="name">{{ r.name }}</span>
+          <span v-if="r.inspected_today" class="done-tag">已巡检</span>
           <span class="code">{{ r.code }}</span>
         </div>
         <div class="row2">
           <span v-if="r.area" class="tag area">{{ r.area }}</span>
+          <span class="eqs">{{ r.equipment_count }} 台设备</span>
           <span v-if="r.owner_name" class="owner">负责人：{{ r.owner_name }}</span>
         </div>
-        <el-icon class="arrow"><ArrowRight /></el-icon>
+        <el-icon class="arrow">
+          <CircleCheck v-if="r.inspected_today" />
+          <ArrowRight v-else />
+        </el-icon>
       </div>
 
       <div v-if="!loading && filteredRooms.length === 0" class="empty">
@@ -49,10 +55,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowRight, Search } from '@element-plus/icons-vue'
+import { ArrowRight, CircleCheck, Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
-import { apiRoomList, type RoomInfo } from '@/api/room'
+import { apiInspectableRooms, type InspectableRoom } from '@/api/mobileInspection'
 
 const route = useRoute()
 const router = useRouter()
@@ -62,7 +68,7 @@ const userStore = useUserStore()
 const entrySource = computed(() => (route.query.source === 'qr' ? 'qr' : 'manual'))
 
 const loading = ref(false)
-const rooms = ref<RoomInfo[]>([])
+const rooms = ref<InspectableRoom[]>([])
 const keyword = ref('')
 
 const greeting = computed(() => {
@@ -82,14 +88,17 @@ const filteredRooms = computed(() => {
 async function load() {
   loading.value = true
   try {
-    const data = await apiRoomList({ status: 1, page: 1, size: 200 })
-    rooms.value = data.items
+    rooms.value = await apiInspectableRooms()
   } finally {
     loading.value = false
   }
 }
 
-function goRoom(r: RoomInfo) {
+function goRoom(r: InspectableRoom) {
+  if (r.inspected_today) {
+    ElMessage.info('今天已巡检过该机房，每个机房每天仅可巡检一次')
+    return
+  }
   router.push({
     name: 'MobileInspectionStart',
     params: { roomCode: r.code },
@@ -153,10 +162,21 @@ onMounted(load)
   &:active { transform: scale(0.99); }
   &:hover { box-shadow: 0 6px 16px rgba(15,37,71,0.1); }
 
+  &.done {
+    border-left-color: $status-completed;
+    background: #FAFCF7;
+    .name { color: $text-secondary; }
+    .arrow { color: $status-completed; }
+  }
+
   .row1 {
     display: flex; align-items: baseline; gap: 8px;
     .name { font-size: 16px; font-weight: 600; color: $text-primary; }
     .code { font-size: 12px; color: $text-tertiary; }
+    .done-tag {
+      font-size: 11px; padding: 1px 8px; border-radius: 8px; font-weight: 500;
+      background: rgba(82,196,26,0.14); color: $status-completed;
+    }
   }
   .row2 {
     display: flex; align-items: center; gap: 10px; margin-top: 8px;
@@ -164,6 +184,7 @@ onMounted(load)
       font-size: 11px; padding: 1px 8px; border-radius: 8px;
       background: $brand-light; color: $brand-primary;
     }
+    .eqs { font-size: 12px; color: $text-tertiary; }
     .owner { font-size: 12px; color: $text-secondary; }
   }
   .arrow {

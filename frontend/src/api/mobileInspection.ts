@@ -52,6 +52,22 @@ export interface StartInspectionData {
   all_completed: boolean
 }
 
+/** One enabled room in the mobile picker, with whether the current account already inspected it today. */
+export interface InspectableRoom {
+  id: number
+  code: string
+  name: string
+  area?: string | null
+  owner_id?: number | null
+  owner_name?: string | null
+  status: number
+  equipment_count: number
+  inspected_today: boolean
+}
+
+export const apiInspectableRooms = () =>
+  api.get<InspectableRoom[]>('/api/mobile/inspection/rooms')
+
 export const apiStartRoomInspection = (roomCode: string, source: 'manual' | 'qr' = 'manual') =>
   api.post<StartInspectionData>(`/api/mobile/inspection/rooms/${encodeURIComponent(roomCode)}/start`, { source })
 
